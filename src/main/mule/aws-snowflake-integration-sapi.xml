@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:snowflake="http://www.mulesoft.org/schema/mule/snowflake"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/snowflake http://www.mulesoft.org/schema/mule/snowflake/current/mule-snowflake.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	<http:listener-config name="HTTP_Listener_config" doc:name="HTTP Listener config" doc:id="8242ae61-6878-442c-8c61-a08222b96c87" >
+		<http:listener-connection host="0.0.0.0" port="8081" />
+	</http:listener-config>
+	<snowflake:snowflake-config name="Snowflake_Config" doc:name="Snowflake Config" doc:id="611a3ebe-0966-415c-9c95-0a91ad72547c" >
+		<snowflake:snowflake-connection accountName="khyezih-za60875" warehouse="COMPUTE_WH" database="TenMillionDb" schema="PUBLIC" user="speriyala" password="Psmohan@234" />
+	</snowflake:snowflake-config>
+	<flow name="aws-snowflake-integration-sapiFlow" doc:id="3c209a3a-b289-4e33-9cbc-3dfcc2674f24" >
+		<http:listener doc:name="Listener" doc:id="a16a41e2-83e2-48f6-855b-ecab237ec6e3" config-ref="HTTP_Listener_config" path="/aws"/>
+		<snowflake:execute-ddl doc:name="createStage" doc:id="7f81b51b-894e-48d8-8f1e-c03fa5b242c8" config-ref="Snowflake_Config">
+			<snowflake:sql ><![CDATA[CREATE OR REPLACE STAGE my_million_records_stage 
+URL = 's3://shyam-bucket-aug28' 
+CREDENTIALS = (AWS_KEY_ID = 'AKIAUQAWE27MOBWV4NU3'  AWS_SECRET_KEY = 'WWXP9X1+C6To81LTRybi89+6I5nfyhIj9Vn8Gpsg');]]></snowflake:sql>
+		</snowflake:execute-ddl>
+		<snowflake:execute-ddl doc:name="fileFormat" doc:id="d3bad576-9899-4b08-a67e-04993773962e" config-ref="Snowflake_Config">
+			<snowflake:sql ><![CDATA[CREATE OR REPLACE  FILE FORMAT file_million_format_csv
+TYPE = csv 
+FIELD_DELIMITER = '|' 
+ERROR_ON_COLUMN_COUNT_MISMATCH=false;]]></snowflake:sql>
+		</snowflake:execute-ddl>
+		<snowflake:execute-ddl doc:name="Execute ddl" doc:id="df744c31-dd8d-432c-bdc4-7faedaf3cf9e" config-ref="Snowflake_Config">
+			<snowflake:sql ><![CDATA[COPY INTO TENMILLIONDB.PUBLIC.TEST
+FROM  @MY_MILLIONRECORDS_STAGE
+FILE_FORMAT = (FORMAT_NAME = 'FILE_MILFORM_CSV')
+PATTERN='.*.csv'
+ON_ERROR = 'SKIP_FILE';
+]]></snowflake:sql>
+		</snowflake:execute-ddl>
+		<ee:transform doc:name="Transform Message" doc:id="303e004b-02c6-4cb2-b6f0-e3ce1b03258b" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+"message" : "staging,file formatting and data insertion done successfully"
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
